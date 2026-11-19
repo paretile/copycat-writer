@@ -173,3 +173,7 @@ body.hinted .stage{padding-top:118px}
 body.ws.ov .labwrap{left:50%!important}
 body.ws.ov .toast{left:50%}
 body.ws:not(.ov) .toast{left:calc(50% + var(--side)/2)}
+
+.demo-note{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:20;font:400 11px var(--mono);color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 12px;pointer-events:none;white-space:nowrap}
+body.ws .demo-note{left:calc(50% + var(--side)/2)}
+body.ws.ov .demo-note{left:50%}

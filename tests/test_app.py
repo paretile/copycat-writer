@@ -427,9 +427,9 @@ def run(b, url):
         sw = page.evaluate("""async () => {
           const r = await navigator.serviceWorker.ready;
           const keys = await caches.keys();
-          return { scope: r.scope, active: !!(r.active && r.active.state), keys: keys, cache: 'copycat-writer-v1' };
+          return { scope: r.scope, active: !!(r.active && r.active.state), keys: keys, cache: 'copycat-writer-v2' };
         }""")
-        check('service worker becomes ready on http', sw['active'] and 'copycat-writer-v1' in sw['keys'], sw)
+        check('service worker becomes ready on http', sw['active'] and 'copycat-writer-v2' in sw['keys'], sw)
 
         # 18. Opening index.html straight from disk works too, and does not register a worker.
         p2 = ctx.new_page(); errs2 = []
@@ -447,6 +447,36 @@ def run(b, url):
           return navigator.serviceWorker.controller == null;
         }""")
         check('file:// does not register a service worker', no_sw and not errs2, (no_sw, errs2))
+
+        # 19. Demo mode (?demo=1, and automatically on paretile.com): nothing is persisted anywhere.
+        dc = b.new_context(viewport={'width': 1280, 'height': 800})
+        dp = dc.new_page()
+        dp.goto(url + '?demo=1')
+        dp.wait_for_selector('#editor')
+        # Old data from an earlier non-demo visit must be wiped, not shown.
+        dp.evaluate("() => { localStorage.setItem('ccw.docs', JSON.stringify([{id:'old',title:'Old',html:'OLD SAVED TEXT',alts:{},overflow:'',updated:1}])); localStorage.setItem('ccw.settings', JSON.stringify({key:'sk-should-be-wiped'})); }")
+        dp.reload(); dp.wait_for_selector('#editor')
+        check('demo: flag is on', dp.evaluate("() => window.CopycatWriter.demo") is True)
+        check('demo: note is visible', dp.is_visible('#demo-note') and 'nothing you type is saved' in dp.inner_text('#demo-note'))
+        check('demo: stale saved docs and key are wiped', dp.evaluate("() => Object.keys(localStorage).filter(k => k.indexOf('ccw.') === 0).length") == 0)
+        check('demo: old saved text is not shown', 'OLD SAVED TEXT' not in text(dp))
+        dp.click('#editor'); dp.keyboard.press('Control+End'); dp.keyboard.type(' ZZZ-DEMO-EDIT')
+        dp.keyboard.press('Control+s')
+        dp.wait_for_timeout(300)
+        check('demo: Ctrl+S says nothing is saved', 'nothing you type is saved' in dp.inner_text('#toast'), dp.inner_text('#toast'))
+        dp.wait_for_timeout(4500)  # past autosave
+        dp.click('#btn-settings'); dp.fill('#s-key', 'sk-demo-key'); dp.click('#s-save')
+        check('demo: nothing written to localStorage after edit, save and settings', dp.evaluate("() => localStorage.length") == 0, dp.evaluate("() => Object.keys(localStorage)"))
+        check('demo: nothing in sessionStorage/IndexedDB/cookies', dp.evaluate("async () => sessionStorage.length === 0 && document.cookie === '' && (!indexedDB.databases || (await indexedDB.databases()).length === 0)"))
+        dp.reload(); dp.wait_for_selector('#editor')
+        check('demo: edit is gone after reload', 'ZZZ-DEMO-EDIT' not in text(dp))
+        check('demo: reload shows the default sample', 'Welcome to Copycat Writer' in text(dp))
+        check('demo: key is gone after reload', dp.evaluate("() => { document.getElementById('btn-settings').click(); return document.getElementById('s-key').value; }") == '')
+        dc.close()
+        nc = b.new_context(viewport={'width': 1280, 'height': 800})
+        npg = nc.new_page(); npg.goto(url); npg.wait_for_selector('#editor')
+        check('non-demo (localhost): demo flag off, no note', npg.evaluate("() => window.CopycatWriter.demo") is False and not npg.is_visible('#demo-note'))
+        nc.close()
 
 if __name__ == '__main__':
     main()

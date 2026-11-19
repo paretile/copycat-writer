@@ -7,6 +7,25 @@
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
   var editor = $('#editor'), dotsLayer = $('#dots'), paper = $('#paper');
+  // Demo mode: on the public demo (paretile.com) nothing is written to this browser or anywhere else.
+  // Documents, settings and your AI key live in memory only and are gone on reload. Everywhere else
+  // (a downloaded copy, your own host, localhost) the app saves to this browser's localStorage as usual.
+  // Add ?demo=1 to force demo mode, ?demo=0 to turn it off.
+  var DEMO = (function () {
+    var q = /[?&]demo=(\d)/.exec(location.search);
+    if (q) return q[1] === '1';
+    return /(^|\.)paretile\.com$/i.test(location.hostname);
+  })();
+  var KV = (function () {
+    if (!DEMO) return localStorage;
+    var m = {};
+    try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('ccw.') === 0) localStorage.removeItem(k); }); } catch (e) {}
+    return {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; },
+      setItem: function (k, v) { m[k] = String(v); },
+      removeItem: function (k) { delete m[k]; }
+    };
+  })();
   var LS = { docs: 'ccw.docs', cur: 'ccw.current', settings: 'ccw.settings', ws: 'ccw.workspace', hint: 'ccw.hintDismissed', seeded: 'ccw.sampleSeeded' };
 
   var state = {
@@ -18,8 +37,8 @@
   // ---------- utilities ----------
   function uid(p) { return (p || 'a') + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
-  function store(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+  function load(k, d) { try { var v = KV.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function store(k, v) { KV.setItem(k, JSON.stringify(v)); }
   function settings() { return Object.assign({ base: 'https://api.openai.com/v1', model: 'gpt-4o-mini', key: '', dark: false }, load(LS.settings, {})); }
 
   // Text nodes inside the editor, in order, with global offsets.
@@ -378,9 +397,9 @@
     var doc = { id: id, title: titleOf(fullText()), html: cleanHTML(), alts: state.alts, overflow: $('#overflow-text').value, updated: Date.now() };
     var i = docs.findIndex(function (d) { return d.id === id; });
     if (i >= 0) docs[i] = doc; else docs.unshift(doc);
-    store(LS.docs, docs); localStorage.setItem(LS.cur, id);
+    store(LS.docs, docs); KV.setItem(LS.cur, id);
     state.dirty = false; setSaveState('saved');
-    if (!silent) toast('Saved in this browser.', [], 1200);
+    if (!silent) toast(DEMO ? 'Demo: nothing you type is saved.' : 'Saved in this browser.', [], 1500);
   }
   function sanitize(html) {
     var t = document.createElement('template'); t.innerHTML = html || '';
@@ -395,7 +414,7 @@
     endTrim(true); clearFlags();
     if (!d) { state.docId = null; editor.innerHTML = ''; state.alts = {}; $('#overflow-text').value = ''; }
     else { state.docId = d.id; editor.innerHTML = sanitize(d.html); state.alts = d.alts || {}; $('#overflow-text').value = d.overflow || ''; }
-    localStorage.setItem(LS.cur, state.docId || '');
+    KV.setItem(LS.cur, state.docId || '');
     state.selAlt = null; state.target = null; state.dirty = false; setSaveState('saved');
     pruneAlts(); renderSidebar(); refresh();
   }
@@ -411,7 +430,7 @@
   function markDirty() { state.dirty = true; setSaveState('dirty'); scheduleAutosave(); }
   var autoT = null;
   function scheduleAutosave() { clearTimeout(autoT); autoT = setTimeout(function () { if (state.dirty && !state.walk) save(true); }, 4000); }
-  function setSaveState(s) { var el = $('#savestate'); el.textContent = s === 'dirty' ? 'unsaved' : 'saved'; el.classList.toggle('dirty', s === 'dirty'); }
+  function setSaveState(s) { var el = $('#savestate'); el.textContent = DEMO ? 'demo, not saved' : (s === 'dirty' ? 'unsaved' : 'saved'); el.classList.toggle('dirty', s === 'dirty'); }
 
   // ---------- post to X ----------
   function xIntentURL(text) { return 'https://x.com/intent/post?text=' + encodeURIComponent(text); }
@@ -653,7 +672,7 @@
   // ---------- workspace, menus, settings ----------
   function openWorkspace(on) {
     document.body.classList.toggle('ws', on);
-    localStorage.setItem(LS.ws, on ? '1' : '0');
+    KV.setItem(LS.ws, on ? '1' : '0');
     if (!on) { closePops(); showOverflow(false); }
     setTimeout(renderDots, 0);
   }
@@ -792,14 +811,14 @@
     if (sel.rangeCount && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) state.savedRange = sel.getRangeAt(0).cloneRange();
   });
   window.addEventListener('resize', renderDots);
-  window.addEventListener('beforeunload', function () { if (state.dirty) save(true); });
+  window.addEventListener('beforeunload', function () { if (state.dirty && !DEMO) save(true); });
 
   // Settings
   $('#s-cancel').addEventListener('click', function () { $('#settings').hidden = true; });
   $('#s-clear').addEventListener('click', function () { var s = settings(); s.key = ''; store(LS.settings, s); $('#s-key').value = ''; toast('Key forgotten.', [], 1200); });
   $('#s-save').addEventListener('click', function () {
     store(LS.settings, { base: $('#s-base').value.trim() || 'https://api.openai.com/v1', model: $('#s-model').value.trim() || 'gpt-4o-mini', key: $('#s-key').value.trim(), dark: $('#s-dark').checked });
-    $('#settings').hidden = true; applyTheme(); toast('Settings saved in this browser.', [], 1200);
+    $('#settings').hidden = true; applyTheme(); toast(DEMO ? 'Demo: settings last until you reload.' : 'Settings saved in this browser.', [], 1500);
   });
   $('#settings').addEventListener('click', function (e) { if (e.target.id === 'settings') this.hidden = true; });
 
@@ -807,9 +826,9 @@
   $('#btn-help').addEventListener('click', function () { $('#help').hidden = false; });
   $('#help-close').addEventListener('click', function () { $('#help').hidden = true; });
   $('#help').addEventListener('click', function (e) { if (e.target.id === 'help') this.hidden = true; });
-  $('#hint-close').addEventListener('click', function () { $('#hint').hidden = true; document.body.classList.remove('hinted'); localStorage.setItem(LS.hint, '1'); setTimeout(renderDots, 0); });
+  $('#hint-close').addEventListener('click', function () { $('#hint').hidden = true; document.body.classList.remove('hinted'); KV.setItem(LS.hint, '1'); setTimeout(renderDots, 0); });
   $('#hint-help').addEventListener('click', function () { $('#help').hidden = false; });
-  if (!localStorage.getItem(LS.hint)) { $('#hint').hidden = false; document.body.classList.add('hinted'); }
+  if (!KV.getItem(LS.hint)) { $('#hint').hidden = false; document.body.classList.add('hinted'); }
 
   var SAMPLE_ID = 'd-sample';
   function sampleDoc() {
@@ -829,16 +848,17 @@
   }
   function seedSample() {
     var docs = allDocs().filter(function (d) { return d.id !== SAMPLE_ID; });
-    docs.unshift(sampleDoc()); store(LS.docs, docs); localStorage.setItem(LS.seeded, '1');
+    docs.unshift(sampleDoc()); store(LS.docs, docs); KV.setItem(LS.seeded, '1');
   }
 
   // Boot
+  if (DEMO) { document.body.classList.add('demo'); $('#demo-note').hidden = false; }
   applyTheme();
-  document.body.classList.toggle('ws', localStorage.getItem(LS.ws) !== '0'); // workspace is on unless you hid it
-  var cur = localStorage.getItem(LS.cur);
+  document.body.classList.toggle('ws', KV.getItem(LS.ws) !== '0'); // workspace is on unless you hid it
+  var cur = KV.getItem(LS.cur);
   var curDoc = allDocs().find(function (d) { return d.id === cur; });
   var curEmpty = curDoc && !String(curDoc.html || '').replace(/<[^>]*>/g, '').trim();
-  if (!localStorage.getItem(LS.seeded) || !allDocs().length || (curDoc && curEmpty && curDoc.id !== SAMPLE_ID)) {
+  if (!KV.getItem(LS.seeded) || !allDocs().length || (curDoc && curEmpty && curDoc.id !== SAMPLE_ID)) {
     seedSample(); openDoc(SAMPLE_ID); showOverflow(true);
   } else if (curDoc) openDoc(cur);
   else openDoc(allDocs()[0].id);
@@ -846,5 +866,5 @@
   editor.focus();
 
   // Small hook for tests and the curious.
-  window.CopycatWriter = { state: state, save: save, openDoc: openDoc, xIntentURL: xIntentURL, articleFor: articleFor, visibleText: visibleText, setVersion: setVersion, cycle: cycle, createAlt: createAlt, addVersion: addVersion, seedSample: seedSample };
+  window.CopycatWriter = { demo: DEMO, state: state, save: save, openDoc: openDoc, xIntentURL: xIntentURL, articleFor: articleFor, visibleText: visibleText, setVersion: setVersion, cycle: cycle, createAlt: createAlt, addVersion: addVersion, seedSample: seedSample };
 })();

@@ -19,7 +19,7 @@ Copycat Writer is a small writing tool. You open it, you write, and the writing 
 - **Ghost it / Revive it.** Select text and press Ctrl+/ (or right-click). It fades to about 10% but stays put, in case you change your mind. Ghosted text doesn't count toward the word count.
 - **Overflow.** "Stash this in Overflow" (Ctrl+Shift+S) cuts the selection into a scratchpad on the right. You can drag and copy/paste text either way.
 - **The lab** (the beaker). Scans that mark weak or convoluted sentences, and four trims: Slight trim, Tighten some, Even sharper, Cut in half. A trim ghosts what it would cut. Then you pick **Make the cuts**, **Walk through** (cut or skip each one), or **Done** (keep them ghosted and decide later).
-- **Save and documents.** Everything saves to your browser's localStorage (Ctrl+S, plus autosave). The bottom-left icons list your documents and start a new one.
+- **Save and documents.** Everything saves to your browser's localStorage (Ctrl+S, plus autosave). The bottom-left icons list your documents and start a new one. The public demo at paretile.com is the exception: it saves nothing, anywhere. Whatever you type there is gone when you reload, and the page says so. A downloaded copy or your own host saves normally.
 - **Post to X.** Opens X's post composer with your text, minus anything ghosted. LinkedIn is there too. It's disabled, and it shakes if you poke it.
 
 ## AI, optionally
@@ -30,7 +30,7 @@ Without a key, AI Alternatives politely asks for one. The scans and trims fall b
 
 ## Use it
 
-Open [https://paretile.com/copycat-writer/](https://paretile.com/copycat-writer/). In Chrome or Edge, install it as an app from the address bar or the browser's Install app menu. Once installed, it works offline.
+Open [https://paretile.com/copycat-writer/](https://paretile.com/copycat-writer/) to try it. That's a demo, so nothing you write there is saved. To keep your writing, download this repo and open `index.html`, or host it yourself. In Chrome or Edge, install it as an app from the address bar or the browser's Install app menu. Once installed, it works offline.
 
 Or download this repo and open `index.html` in a browser. That works straight from disk, with no server and no build step. Installing as an app needs a web host; browsers only allow that over HTTPS.
 

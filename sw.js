@@ -1,5 +1,5 @@
 /* Copycat Writer service worker. Cached for offline use. */
-const CACHE = 'copycat-writer-v1';
+const CACHE = 'copycat-writer-v2';
 const ASSETS = [
   './',
   './index.html',
