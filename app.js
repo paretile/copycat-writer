@@ -14,7 +14,7 @@
   var DEMO = (function () {
     var q = /[?&]demo=(\d)/.exec(location.search);
     if (q) return q[1] === '1';
-    return /(^|\.)paretile\.com$/i.test(location.hostname);
+    return /(^|\.)(paretile\.com|paretile-site\.pages\.dev)$/i.test(location.hostname);
   })();
   var KV = (function () {
     if (!DEMO) return localStorage;
